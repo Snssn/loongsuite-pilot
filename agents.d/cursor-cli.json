@@ -1,0 +1,19 @@
+{
+  "id": "cursor-cli",
+  "displayName": "Cursor CLI",
+  "deployMode": "hook",
+  "detection": {
+    "paths": [],
+    "commands": ["cursor-agent"]
+  },
+  "hook": {
+    "settingsPath": "~/.cursor/hooks.json",
+    "events": [],
+    "hookCommand": "",
+    "format": "flat"
+  },
+  "input": {
+    "type": "hook-jsonl",
+    "logDir": "$PILOT_DATA/logs/cursor/history"
+  }
+}

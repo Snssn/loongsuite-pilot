@@ -30,6 +30,7 @@ export function assembleTurn(journalEvents, options = {}) {
   const runtimeConfig = options.runtimeConfig || {};
   const stopConversationId = options.stopConversationId;
   const transcriptPath = options.transcriptPath;
+  const variant = options.variant || 'cursor';
 
   // Find the prompt for THIS stop's conversation
   const promptEvent = stopConversationId
@@ -61,7 +62,7 @@ export function assembleTurn(journalEvents, options = {}) {
     trace_id: traceId,
     'gen_ai.session.id': parentConvId,
     'gen_ai.turn.id': turnId,
-    'gen_ai.agent.type': 'cursor',
+    'gen_ai.agent.type': variant,
     'user.id': userId,
   };
 

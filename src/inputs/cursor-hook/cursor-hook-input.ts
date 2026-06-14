@@ -25,6 +25,16 @@ interface SessionCdCacheEntry {
 
 const sessionCdCache = new BoundedTtlCache<SessionCdCacheEntry>();
 
+const CLI_VERSION_PATTERN = /^\d{4}\.\d{2}\.\d{2}/;
+
+function inferCursorVariant(record: Record<string, unknown>): ClientType.Cursor | ClientType.CursorCli {
+  const explicitType = record['gen_ai.agent.type'];
+  if (explicitType === 'cursor-cli') return ClientType.CursorCli;
+  const version = record['agent.cursor.cursor_version'] ?? record['cursor_version'];
+  if (typeof version === 'string' && CLI_VERSION_PATTERN.test(version)) return ClientType.CursorCli;
+  return ClientType.Cursor;
+}
+
 function getStringValue(data: Record<string, unknown>, key: string): string | undefined {
   const val = data[key];
   return typeof val === 'string' && val.length > 0 ? val : undefined;
@@ -72,10 +82,15 @@ export class CursorHookInput extends BaseHookInput {
       buildAttributes(record, payload, hookEvent),
     );
     if (canonicalEntry) {
+      const variant = inferCursorVariant(record);
+      if (variant === ClientType.CursorCli) {
+        canonicalEntry['gen_ai.agent.type'] = ClientType.CursorCli;
+      }
       if (hookEvent.toLowerCase() === 'stop') {
         stripTokenFields(canonicalEntry);
       }
-      await enrichCanonicalEntryWithGit(canonicalEntry, record, 'cursor');
+      const gitNamespace = variant === ClientType.CursorCli ? 'cursor_cli' : 'cursor';
+      await enrichCanonicalEntryWithGit(canonicalEntry, record, gitNamespace);
       return canonicalEntry;
     }
 
@@ -85,6 +100,7 @@ export class CursorHookInput extends BaseHookInput {
     const toolArguments = buildToolArguments(payload);
     const attributes = buildAttributes(record, payload, hookEvent);
     const model = getStringValue(payload, 'model') ?? UNKNOWN_MODEL;
+    const variant = inferCursorVariant(record);
     const sessionId = getStringValue(payload, 'session_id')
       ?? getStringValue(payload, 'conversation_id')
       ?? getStringValue(payload, 'session.id')
@@ -128,7 +144,7 @@ export class CursorHookInput extends BaseHookInput {
       'gen_ai.turn.id': getStringValue(payload, 'gen_ai.turn.id')
         ?? getStringValue(payload, 'generation_id')
         ?? getStringValue(payload, 'turn.id'),
-      'gen_ai.agent.type': ClientType.Cursor,
+      'gen_ai.agent.type': variant,
       'gen_ai.request.model': model,
       'gen_ai.response.model': model,
       'gen_ai.response.finish_reasons': normalizeFinishReasons(getStringValue(payload, 'response_finish_reasons')),
