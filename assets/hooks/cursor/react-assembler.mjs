@@ -68,23 +68,6 @@ export function assembleTurn(journalEvents, options = {}) {
 
   const records = [];
 
-  // User-hook llm.request (no step_id, no model → ENTRY input)
-  if (promptEvent.prompt) {
-    records.push(applyPolicy({
-      time_unix_nano: eventTs(promptEvent),
-      observed_time_unix_nano: eventTs(promptEvent),
-      'event.id': crypto.randomUUID(),
-      'event.name': 'llm.request',
-      ...baseFields,
-      'gen_ai.provider.name': inferProvider(model),
-      'gen_ai.input.messages_delta': [
-        { role: 'user', parts: [{ type: 'text', content: promptEvent.prompt }] },
-      ],
-      'agent.cursor.hook_event_name': 'beforeSubmitPrompt',
-      'agent.cursor.composer_mode': promptEvent.composer_mode,
-    }, runtimeConfig));
-  }
-
   // ─── Phase 2: Child session nesting ───
   // Scan transcript subagents/ directory for child conversation_ids
   const childConvIds = scanSubagentDir(transcriptPath || stopEvent?.transcript_path);
@@ -308,6 +291,12 @@ function buildParentSteps(events, ctx) {
     for (const rec of pendingToolRecords) {
       rec['gen_ai.step.id'] = stepId;
       records.push(rec);
+      if (rec['event.name'] === 'tool.result' && rec.time_unix_nano) {
+        const recTs = rec.observed_time_unix_nano || rec.time_unix_nano;
+        const recTsStr = typeof recTs === 'string' ? recTs : String(recTs);
+        const candidate = new Date(Number(BigInt(recTsStr) / 1000000n)).toISOString();
+        if (!lastStepEndTs || candidate > lastStepEndTs) lastStepEndTs = candidate;
+      }
     }
     const calls = stepToolCalls.get(stepId) || [];
     calls.push(...pendingToolCalls);
